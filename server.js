@@ -1,66 +1,59 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+async function crawler(){
+    const axios = require("axios");
+    //TRAMITE UNA CHIAMATA AXIOS MEMORIZZO IN pageHTML TUTTO HTML DI https://scrapeme.live/shop
+    const pageHTML = await axios.get("https://scrapeme.live/shop");
 
-async function main(maxPages = 50) {
-    // initialized with the first webpage to visit
-    const paginationURLsToVisit = ["https://scrapeme.live/shop"];
-    const visitedURLs = [];
+    //Cheerio è una libreria JavaScript utilizzata principalmente per analizzare e manipolare il DOM
+    const cheerio  = require("cheerio");
 
-    const productURLs = new Set();
 
-    // iterating until the queue is empty
-    // or the iteration limit is hit
-    while (
-        paginationURLsToVisit.length !== 0 &&
-        visitedURLs.length <= maxPages
-        ) {
-        // the current webpage to crawl
-        const paginationURL = paginationURLsToVisit.pop();
+    // funzione load() di Cheerio per caricare il contenuto preso prima 
+    const $ = cheerio.load(pageHTML.data);
 
-        // retrieving the HTML content from paginationURL
-        const pageHTML = await axios.get(paginationURL);
+    const paginationURLs = [];
+    const productURLs = [];
+    // Recupero tutte url del tag a faccio il foreach per iterarli tutti
+    $(".page-numbers a ").each((index, element) => {
+        const paginationURL = $(element).attr("href");
+        paginationURLs.push(paginationURL);
+    });
 
-        // adding the current webpage to the
-        // web pages already crawled
-        visitedURLs.push(paginationURL);
+    // retrieving the product URLs 
+    $("li.product a.woocommerce-LoopProduct-link").each((index, element) => { 
+        const productURL = $(element).attr("href");
+        productURLs.push(productURL);
+    });
 
-        // initializing cheerio on the current webpage
-        const $ = cheerio.load(pageHTML.data);
-
-        // retrieving the pagination URLs
-        $(".page-numbers a").each((index, element) => {
-            const paginationURL = $(element).attr("href");
-
-            // adding the pagination URL to the queue
-            // of web pages to crawl, if it wasn't yet crawled
-            if (
-                !visitedURLs.includes(paginationURL) &&
-                !paginationURLsToVisit.includes(paginationURL)
-            ) {
-                paginationURLsToVisit.push(paginationURL);
-            }
-        });
-
-        // retrieving the product URLs
-        $("li.product a.woocommerce-LoopProduct-link").each((index, element) => {
-            const productURL = $(element).attr("href");
-            productURLs.add(productURL);
-        });
+    for( const DetailUrl of productURLs ){
+        await scrapeProductDetails(DetailUrl)
     }
 
-    // logging the crawling results
-    console.log([...productURLs]);
+    console.log("URL delle pagine di paginazione:");
+    console.log(paginationURLs);
 
-    // use productURLs for scraping purposes...
+    // Stampare le URL dei prodotti
+    console.log("URL dei prodotti:");
+    console.log(productURLs);
+};
+
+async function scrapeProductDetails(DetailUrl){
+
+    const axios = require("axios");
+    const cheerio = require("cheerio");
+ // Eseguo una richiesta HTTP per recuperare il contenuto della pagina del prodotto
+    const response = await axios.get(DetailUrl);
+    const $ = cheerio.load(response.data);
+
+    const productName = $(".product_title").text().trim();
+    const productPrice = $(".woocommerce-Price-amount").text().trim();
+    const productDescription = $(".woocommerce-product-details__short-description p").text().trim();
+    const productImage =$(".woocommerce-product-gallery__image a ").attr("href");
+
+    console.log("Nome del prodotto:", productName);
+    console.log("Prezzo del prodotto:", productPrice);
+    console.log("Descrizione del prodotto:", productDescription);
+    console.log("Descrizione img:", productImage);
+
 }
 
-main()
-    .then(() => {
-        process.exit(0);
-    })
-    .catch((e) => {
-        // logging the error message
-        console.error(e);
-
-        process.exit(1);
-    });
+crawler();
